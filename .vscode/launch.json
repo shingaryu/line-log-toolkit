@@ -1,0 +1,70 @@
+{
+  // IntelliSense を使用して利用可能な属性を学べます。
+  // 既存の属性の説明をホバーして表示します。
+  // 詳細情報は次を確認してください: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python デバッガー: 現在のファイル",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Run line_log_simple (split)",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/line_log_simple.py",
+      "console": "integratedTerminal",
+      "args": [
+        "split",
+        "--input",
+        "line_family_messaging_history.txt",
+        "--out",
+        "out"
+      ],
+      "envFile": "${workspaceFolder}/.env"
+    },    
+    {
+      "name": "Run line_log_simple (prompt for chatgpt-web)",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/line_log_simple.py",
+      "console": "integratedTerminal",
+      "args": [
+        "prompt",
+        "--out",
+        "out",
+        "--gdrive-folder",
+        "/家族イベント/LINE/月別",
+        "--file-pattern",
+        "YYYY-MM.txt",
+        "--your-name",
+        "松澤晃樹"
+      ],
+      "envFile": "${workspaceFolder}/.env"
+    },    
+    {
+      "name": "Run line_reply (api)",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/line_reply.py",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "--input-dir", "out",
+        "--my-name", "松澤晃樹",
+        "--months", "4",
+        "--instruction-file", "custom_instruction.txt",
+        // "--model", "gpt-4o-mini",
+        "--model", "gpt-4.1-mini",
+        // "--model", "gpt-4.1",
+        "--n", "3",
+        "--context-window", "800",
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "envFile": "${workspaceFolder}/.env"
+    }    
+  ]
+}
