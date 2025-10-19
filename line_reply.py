@@ -5,6 +5,7 @@ line_reply.py — LINEの返信案をOpenAI APIで生成（解析は line_core �
 """
 import argparse, os
 import time, random
+import re
 
 from typing import List
 
@@ -16,6 +17,54 @@ from openai import RateLimitError, APIError, APIConnectionError, Timeout
 # OpenAI 公式SDK（Responses API）
 # pip install openai
 from openai import OpenAI   # 環境変数 OPENAI_API_KEY を使用  :contentReference[oaicite:1]{index=1}
+
+NUM_PAT   = re.compile(r"\d{1,3}(,\d{3})+|\d+")
+YEN_PAT   = re.compile(r"(¥|円)")
+DATE_PAT  = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})(?!\d)|(\d{1,2})月|(\d{4})[/-](\d{1,2})[/-](\d{1,2})")
+URL_PAT   = re.compile(r"https?://")
+KATA_PAT  = re.compile(r"[ァ-ヶー]{3,}")
+Q_PAT     = re.compile(r"[?？]|(どう|どこ|なに|何|いつ|なぜ|どれ|だれ)")
+IMP_PAT   = re.compile(r"(連絡|確認|決め|調整|予約|依頼|返信|対応|相談|検討|提出|手配)")
+
+def _score_message_text(t: str) -> int:
+    t = t or ""
+    s = 0
+    if NUM_PAT.search(t):  s += 1
+    if YEN_PAT.search(t):  s += 2
+    if DATE_PAT.search(t): s += 1
+    if URL_PAT.search(t):  s += 2
+    if KATA_PAT.search(t): s += 1
+    if Q_PAT.search(t):    s += 1
+    if IMP_PAT.search(t):  s += 1
+    if len(t) >= 20:       s += 1
+    return s
+
+def collect_evidence_snippets_generic(msgs: List, limit: int = 12, window: int = 1) -> List[str]:
+    scored = [(i, _score_message_text(m.text)) for i, m in enumerate(msgs)]
+    scored = [p for p in scored if p[1] > 0]
+    scored.sort(key=lambda x: (-x[1], x[0]))
+    picked, used = [], set()
+    for i, _ in scored:
+        if any(abs(i - j) <= window for j in used):
+            continue
+        picked.append(i)
+        for j in range(i - window, i + window + 1):
+            used.add(j)
+        if len(picked) >= limit:
+            break
+    out = []
+    for i in picked:
+        start = max(0, i - window)
+        end   = min(len(msgs) - 1, i + window)
+        block = []
+        for j in range(start, end + 1):
+            mj = msgs[j]
+            line = (mj.text or "").replace("\r"," ").replace("\n"," ⏎ ")
+            block.append(f"- {mj.date} {mj.time} {mj.sender}: {line}")
+        out.append("\n".join(block))
+    return out
+
+
 
 def call_with_retries(client, model, instructions, user_prompt,
                       max_retries=6, base=0.8, cap=8.0):
@@ -32,6 +81,7 @@ def call_with_retries(client, model, instructions, user_prompt,
                 model=model,
                 instructions=instructions,
                 input=user_prompt,
+                # max_output_tokens=args.max_output_tokens,
             )
         except RateLimitError as e:
             # エラーペイロードを解析
@@ -134,6 +184,30 @@ def build_user_prompt(context_block: str, last_msg: Msg, custom_instruction: str
         "- スタンプ提案が自然なら、末尾に《スタンプ案: …》を1つ（任意）。"
     )
 
+def build_decision_prompt(context_block: str, last_msg, my_name: str, snippets: List[str], custom_instruction: str) -> str:
+    evidence = "\n\n".join(snippets) if snippets else "（根拠候補は少なめ）"
+    return (
+        "家族LINEの直近のやり取りを踏まえて、意見・判断を提示してください。\n"
+        "以下の要件で出力します。\n\n"
+        "【出力フォーマット】\n"
+        "1) 送信案（そのままコピペ可）：\n"
+        "   - 冒頭に結論（依頼先/次アクション）\n"
+        "   - 次に具体アクション（誰が何をいつ）\n"
+        f"   - 口調は「{my_name}」として自然な日本語、家族向けに簡潔\n"
+        "2) 根拠メモ（箇条書き）：\n"
+        "   - 決定理由の要旨＋日付（要約可）\n"
+        "3) 迷いどころ（場合分け）：\n"
+        "   - 想定反論や不確定要素への代替案\n\n"
+        "【会話コンテキスト（古→新）】\n"
+        f"{context_block}\n\n"
+        "【今回の返信ターゲット】\n"
+        f"{last_msg.date} {last_msg.time} {last_msg.sender}: {(last_msg.text or '').replace(chr(10),' ⏎ ')}\n\n"
+        "【根拠候補スニペット】\n"
+        f"{evidence}\n\n"
+        f"【補助指示】\n{custom_instruction or '（特になし）'}\n"
+    )
+
+
 def main():
     ap = argparse.ArgumentParser(description="LINE返信メーカー（OpenAI API / line_core共通化）")
     ap.add_argument("--input-dir", required=True, help="月別ログ(YYYY-MM.txt)のディレクトリ")
@@ -143,6 +217,10 @@ def main():
     ap.add_argument("--model", default="gpt-4o-mini", help="使用モデル（例: gpt-4o-mini）")
     ap.add_argument("--n", type=int, default=2, help="返信候補の個数（既定: 2）")
     ap.add_argument("--context-window", type=int, default=40, help="前文脈として含めるメッセージ数（既定: 40）")
+    ap.add_argument("--mode", choices=["auto", "decision"], default="auto",
+                    help="auto=短文返信（従来）。decision=提案＋根拠＋場合分け。")
+    ap.add_argument("--max-output-tokens", type=int, default=600,
+                    help="出力トークン上限（暴走対策）。既定: 600")
     args = ap.parse_args()
 
     msgs = load_recent_messages(args.input_dir, months=args.months)
@@ -160,15 +238,24 @@ def main():
     with open(args.instruction_file, "r", encoding="utf-8") as f:
         custom_instruction = f.read().strip()
 
-    system_instructions = (
-        "あなたはLINEの返信文を作るアシスタントです。"
-        "丁寧すぎず素っ気なくもない、家族間にふさわしい自然な日本語で短く返してください。"
-        "誤解を招く表現は避け、相手の感情を先に受け止めてから要件を伝えます。"
-        "出力は本文のみ。思考過程や前置きは書かないでください。"
-    )
+    if args.mode == "decision":
+        snippets = collect_evidence_snippets_generic(msgs, limit=12, window=1)
+        user_prompt = build_decision_prompt(context_block, last_msg, args.my_name, snippets, custom_instruction)
+        system_instructions = (
+            "あなたは家族グループに対して、実務的な意思決定を分かりやすく提示する補佐です。"
+            "出力は『送信案→根拠メモ→迷いどころ（場合分け）』の順に簡潔・具体。"
+            "日付や数量は可能な範囲で具体化し、断定が難しい点は場合分けで明示してください。"
+        )
+    else:  # auto = 短文返信のみ
+        user_prompt = build_user_prompt(context_block, last_msg, custom_instruction, args.my_name)
+        system_instructions = (
+            "あなたはLINEの返信文を作るアシスタントです。"
+            "丁寧すぎず素っ気なくもない、家族向けの自然な日本語で短く返してください。"
+            "誤解を避け、相手の感情を先に受け止めてから要件を伝えます。"
+            "出力は本文のみ。前置きや思考過程は書かないでください。"
+        )
 
     client = OpenAI()  # OPENAI_API_KEY を自動使用  :contentReference[oaicite:3]{index=3}
-    user_prompt = build_user_prompt(context_block, last_msg, custom_instruction, args.my_name)
 
     print("====== 返信候補 ======")
     for i in range(max(1, args.n)):
