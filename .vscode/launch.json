@@ -13,7 +13,7 @@
     },
     {
       "name": "Run line_log_simple (split)",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/line_log_simple.py",
       "console": "integratedTerminal",
@@ -28,7 +28,7 @@
     },    
     {
       "name": "Run line_log_simple (prompt for chatgpt-web)",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/line_log_simple.py",
       "console": "integratedTerminal",
@@ -47,7 +47,7 @@
     },    
     {
       "name": "Run line_reply (api)",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/line_reply.py",
       "cwd": "${workspaceFolder}",
