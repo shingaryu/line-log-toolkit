@@ -20,9 +20,9 @@
       "args": [
         "split",
         "--input",
-        "line_family_messaging_history.txt",
+        "input/[LINE] まつざわけのトーク.txt",
         "--out",
-        "out"
+        "splitted"
       ],
       "envFile": "${workspaceFolder}/.env"
     },    
@@ -35,9 +35,9 @@
       "args": [
         "prompt",
         "--out",
-        "out",
+        "out_prompt",
         "--gdrive-folder",
-        "/家族イベント/LINE/月別",
+        "/家族イベント/LINEトーク履歴/月別",
         "--file-pattern",
         "YYYY-MM.txt",
         "--your-name",
@@ -56,10 +56,10 @@
         "--my-name", "松澤晃樹",
         "--months", "4",
         "--instruction-file", "custom_instruction.txt",
-        // "--model", "gpt-4o-mini",
+        "--model", "gpt-4o-mini",
         // "--model", "gpt-4.1-mini",
         // "--model", "gpt-4.1",
-        "--model", "gpt-5-mini",
+        // "--model", "gpt-5-mini",
         "--n", "3",
         "--context-window", "100",
         "--mode", "decision"
