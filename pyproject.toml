@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "line-log-toolkit"
+version = "1.0.0"
+description = "LINE トーク履歴の分割・整理・AI 活用ツールキット"
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.35.0",
+    "python-dotenv>=1.0.1",
+]
+
+[project.optional-dependencies]
+bot = [
+    "flask>=3.0",
+    "line-bot-sdk>=2.0,<4",
+    "pyngrok>=7.0",
+    "requests>=2.28",
+]
+
+[project.scripts]
+line-log-toolkit = "cli:main"
+
+[tool.setuptools]
+py-modules = ["cli", "bot_server", "api_smoketest"]
+packages = ["line_log_toolkit"]

@@ -12,10 +12,10 @@
       "console": "integratedTerminal"
     },
     {
-      "name": "Run line_log_simple (split)",
+      "name": "split  (ログ分割)",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/line_log_simple.py",
+      "program": "${workspaceFolder}/cli.py",
       "console": "integratedTerminal",
       "args": [
         "split",
@@ -25,12 +25,12 @@
         "splitted"
       ],
       "envFile": "${workspaceFolder}/.env"
-    },    
+    },
     {
-      "name": "Run line_log_simple (prompt for chatgpt-web)",
+      "name": "prompt (for chatgpt-web)",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/line_log_simple.py",
+      "program": "${workspaceFolder}/cli.py",
       "console": "integratedTerminal",
       "args": [
         "prompt",
@@ -44,15 +44,16 @@
         "松澤晃樹"
       ],
       "envFile": "${workspaceFolder}/.env"
-    },    
+    },
     {
-      "name": "Run line_reply (api)",
+      "name": "reply (by OpenAI API)",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/line_reply.py",
+      "program": "${workspaceFolder}/cli.py",
       "cwd": "${workspaceFolder}",
       "args": [
-        "--input-dir", "out",
+        "reply",
+        "--input-dir", "splitted",
         "--my-name", "松澤晃樹",
         "--months", "4",
         "--instruction-file", "custom_instruction.txt",

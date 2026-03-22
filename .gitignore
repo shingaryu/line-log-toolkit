@@ -1,5 +1,10 @@
 out/
+out_prompt/
 .env
 __pycache__/
 input/
 splitted/
+line_family_messaging_history.txt
+*.egg-info/
+dist/
+build/
