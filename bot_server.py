@@ -22,9 +22,15 @@ from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
     FileMessage,
     MessageEvent,
+    PostbackEvent,
+    RichMenu,
+    RichMenuArea,
+    RichMenuBounds,
+    RichMenuSize,
     TextMessage,
     TextSendMessage,
 )
+from linebot.models.actions import PostbackAction
 from openai import OpenAI
 
 from line_log_toolkit import (
@@ -60,6 +66,72 @@ SYSTEM_INSTRUCTIONS = (
     "あなたはLINEの返信案を作るアシスタントです。"
     "家族・友人向けに簡潔で誤解を避ける日本語の返信を返してください。"
 )
+
+
+# ---------- リッチメニュー ----------
+def _generate_rich_menu_image() -> bytes:
+    """Pillow で 2500x843 の識別用リッチメニュー画像を生成し PNG バイト列を返す。"""
+    from PIL import Image, ImageDraw, ImageFont
+
+    width, height = 2500, 843
+    bg_color = (0, 102, 51)  # 深緑
+    text_color = (255, 255, 255)
+
+    img = Image.new("RGB", (width, height), bg_color)
+    draw = ImageDraw.Draw(img)
+
+    label = "LINE Log Toolkit"
+    # フォールバック: デフォルトフォントを使用
+    font = ImageDraw.ImageDraw.font  # Pillow デフォルト
+    try:
+        font = ImageFont.truetype("arial.ttf", 80)
+    except OSError:
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 80)
+        except OSError:
+            font = ImageFont.load_default()
+
+    bbox = draw.textbbox((0, 0), label, font=font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    draw.text(((width - tw) / 2, (height - th) / 2), label, fill=text_color, font=font)
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _setup_rich_menu() -> None:
+    """このBot固有のリッチメニューを作成しデフォルトに設定する。"""
+    # 既存デフォルトリッチメニューを解除・削除
+    try:
+        current_id = line_bot_api.get_default_rich_menu()
+        line_bot_api.cancel_default_rich_menu()
+        line_bot_api.delete_rich_menu(current_id)
+        print(f"Deleted previous default rich menu: {current_id}")
+    except Exception:
+        pass  # デフォルトが未設定の場合は無視
+
+    rich_menu = RichMenu(
+        size=RichMenuSize(width=2500, height=843),
+        selected=True,
+        name="LINE Log Toolkit Menu",
+        chat_bar_text="Log Toolkit",
+        areas=[
+            RichMenuArea(
+                bounds=RichMenuBounds(x=0, y=0, width=2500, height=843),
+                action=PostbackAction(label="info", data="noop"),
+            ),
+        ],
+    )
+    menu_id = line_bot_api.create_rich_menu(rich_menu=rich_menu)
+    print(f"Created rich menu: {menu_id}")
+
+    image_data = _generate_rich_menu_image()
+    line_bot_api.set_rich_menu_image(menu_id, "image/png", image_data)
+    print("Uploaded rich menu image")
+
+    line_bot_api.set_default_rich_menu(menu_id)
+    print("Set as default rich menu")
 
 
 # ---------- ngrok / webhook ----------
@@ -179,9 +251,15 @@ def handle_text(event: MessageEvent):
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=text))
 
 
+@handler.add(PostbackEvent)
+def handle_postback(event: PostbackEvent):
+    pass  # リッチメニュータップ時は何もしない
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     if os.getenv("USE_NGROK", "1") == "1":
         public_url = _connect_ngrok(port)
         _set_webhook_url(public_url)
+    _setup_rich_menu()
     app.run(host="0.0.0.0", port=port)

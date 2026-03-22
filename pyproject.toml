@@ -16,6 +16,7 @@ dependencies = [
 bot = [
     "flask>=3.0",
     "line-bot-sdk>=2.0,<4",
+    "Pillow>=10.0",
     "pyngrok>=7.0",
     "requests>=2.28",
 ]

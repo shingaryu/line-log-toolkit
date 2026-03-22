@@ -68,6 +68,15 @@
       "console": "integratedTerminal",
       "justMyCode": true,
       "envFile": "${workspaceFolder}/.env"
-    }    
+    },
+    {
+      "name": "bot server (LINE Bot)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/bot_server.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "envFile": "${workspaceFolder}/.env"
+    }
   ]
 }
