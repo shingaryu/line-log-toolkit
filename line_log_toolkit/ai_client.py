@@ -14,6 +14,7 @@ def call_with_retries(
     model: str,
     instructions: str,
     user_prompt: str,
+    max_output_tokens: int | None = None,
     max_retries: int = 6,
     base: float = 0.8,
     cap: float = 8.0,
@@ -27,11 +28,14 @@ def call_with_retries(
     tries = 0
     while True:
         try:
-            return client.responses.create(
-                model=model,
-                instructions=instructions,
-                input=user_prompt,
-            )
+            kwargs = {
+                "model": model,
+                "instructions": instructions,
+                "input": user_prompt,
+            }
+            if max_output_tokens is not None:
+                kwargs["max_output_tokens"] = max_output_tokens
+            return client.responses.create(**kwargs)
         except RateLimitError as e:
             msg = str(e)
             code = None

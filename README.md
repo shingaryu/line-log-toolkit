@@ -118,3 +118,69 @@ ngrok トンネルの自動接続と webhook URL の自動設定に対応して�
 - `splitted/messages.json` — 構造化 JSON（`{"messages": [...]}`）
 - `out/snippet_pack.md` — キーワードヒット前後の文脈
 - `out_prompt/chatgpt_prompt_template.md` — ChatGPT にそのまま貼り付け可能
+
+## プライバシー保護パイプライン
+
+`privacy` コマンドは、セキュアAPIとローカル辞書を使ってステップ2〜6を一括実行します。
+
+1. 生テキストをセキュアAPIへ送り、固有名詞・連絡先などを抽出する
+2. ローカルJSONの仮名化辞書を生成・更新する
+3. 辞書に基づいて生テキストを一貫した仮名へ置換する
+4. 仮名化済みテキストだけを分析用APIへ送る
+5. 分析結果内の仮名をローカル辞書で復元する
+
+```bash
+python cli.py privacy --input input/raw_log.txt --out out/privacy \
+  --map .pseudonym_map.json --instruction-file custom_instruction.txt
+```
+
+段階実行:
+
+```bash
+# ステップ1〜3: 抽出、辞書更新、仮名化まで
+python cli.py privacy --input input/2026-02.txt --out out/privacy-test \
+  --map .pseudonym_map.test.json --until pseudonymize
+
+# ステップ1〜5: 抽出から復元済み分析まで一括
+python cli.py privacy --input input/2026-02.txt --out out/privacy-test \
+  --map .pseudonym_map.test.json --instruction-file custom_instruction.txt --until restore
+
+# 既存辞書を流用して今回の辞書へ統合する
+python cli.py privacy --input input/2026-02.txt --out out/privacy-test \
+  --map .pseudonym_map.current.json --merge-map .pseudonym_map.previous.json \
+  --instruction-file custom_instruction.txt --until restore
+```
+
+分析工程では `reply` と同じインターフェースで
+`--instruction-file custom_instruction.txt` を指定できます。
+仮名化辞書の各 entry には `surfaces` と `restore_as` が保存されます。
+表記揺れは `surfaces` に同じ仮名として並べて保存され、復元時の代表表記は
+`restore_as` をユーザーが編集して調整できます。
+`--merge-map` を指定すると、ユーザーが流用可能と判断した既存辞書を読み込み、
+既存の仮名を維持したまま今回AIが抽出したエンティティと統合します。
+一致する表記や `surfaces` は同一エンティティとして扱われるため、複数ファイルを
+仮名化したあと分析APIへ渡しても、同じ人物・場所を同じ仮名で接続しやすくなります。
+
+生成ファイル:
+
+- `.pseudonym_map.json`: 元語と仮名を対応づけるローカル専用辞書
+- `out/privacy/extracted_entities.json`: 抽出された機密情報候補
+- `out/privacy/pseudonymized.txt`: 分析APIへ送る仮名化済みテキスト
+- `out/privacy/analysis_pseudonymized.md`: 仮名を含む分析結果
+- `out/privacy/analysis_restored.md`: 仮名を復元した最終出力
+
+`.pseudonym_map*.json` は復元可能な辞書を含むため Git 管理対象外です。
+
+## todo:
+- extract_entities_with_ai で表記揺れを配列にして返してくれる想定だが大抵1つしかふくまれていない
+  - gpt5.5なら期待通りだが古いモデルでも動くように安定化させたい
+- CLIインターフェースでMAPファイルとmerge mapファイルを両方指定する必要があるか不明、作成ロジックの想定は下記
+  - 今回の入力ファイルに対する抽出entities...(a)
+    - 保存時のファイル名は、デフォルト値はあっていいが必須ではない
+  - entitiesに施した仮名を記述した辞書(map)ファイル...(b)
+    - 復号化するときに使用
+  - (a)は、ユーザーの指定によらず入力ファイルに対するAPIレスポンスによってきまる
+  - (b)は、ユーザーの指定によって：
+    - 指定なし：今回の抽出結果(a)に新たに仮名を当てはめて作成
+    - 既存のmapをユーザーが指定したとき(マージ処理)：今回の抽出結果(a)に仮名を当てはめるが、既存のmapに同じ意味のentityがあれば同じ仮名を利用する。
+- mapファイルのマージでコンフリクトが起きた場合の対処(手動含む)

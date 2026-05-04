@@ -70,6 +70,44 @@
       "envFile": "${workspaceFolder}/.env"
     },
     {
+      "name": "privacy 1-3 (test: input/2026-02.txt)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/cli.py",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "privacy",
+        "--input", "input/2026-02.txt",
+        "--out", "out/privacy-test",
+        "--map", ".pseudonym_map.test.json",
+        "--extract-model", "gpt-5.5",
+        "--until", "pseudonymize"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
+      "name": "privacy 1-5 (test: input/2026-02.txt)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/cli.py",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "privacy",
+        "--input", "input/2026-02.txt",
+        "--out", "out/privacy-test",
+        "--map", ".pseudonym_map.test.json",
+        "--instruction-file", "custom_instruction.txt",
+        "--extract-model", "gpt-4o-mini",
+        "--analysis-model", "gpt-4o-mini",
+        "--until", "restore"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
       "name": "bot server (LINE Bot)",
       "type": "debugpy",
       "request": "launch",

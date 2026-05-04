@@ -18,6 +18,18 @@ from .prompt_builder import (
 )
 from .evidence import collect_evidence_snippets
 from .ai_client import call_with_retries, safe_response_text
+from .privacy import (
+    EntityCandidate,
+    PRIVACY_UNTIL_CHOICES,
+    PrivacyPipelineResult,
+    PseudonymEntry,
+    PseudonymMap,
+    PseudonymMapMergeResult,
+    analyze_with_ai,
+    extract_entities_with_ai,
+    parse_extraction_response,
+    run_privacy_pipeline,
+)
 
 __all__ = [
     "Msg",
@@ -33,4 +45,14 @@ __all__ = [
     "collect_evidence_snippets",
     "call_with_retries",
     "safe_response_text",
+    "EntityCandidate",
+    "PRIVACY_UNTIL_CHOICES",
+    "PrivacyPipelineResult",
+    "PseudonymEntry",
+    "PseudonymMap",
+    "PseudonymMapMergeResult",
+    "analyze_with_ai",
+    "extract_entities_with_ai",
+    "parse_extraction_response",
+    "run_privacy_pipeline",
 ]

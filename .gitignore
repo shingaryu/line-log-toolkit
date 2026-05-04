@@ -5,6 +5,7 @@ __pycache__/
 input/
 splitted/
 line_family_messaging_history.txt
+.pseudonym_map*.json
 *.egg-info/
 dist/
 build/

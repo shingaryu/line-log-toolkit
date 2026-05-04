@@ -8,10 +8,12 @@ cli.py — LINE トーク履歴ツールキットの CLI エントリポイン�
   snippets  JSON からキーワードスニペット Pack を生成
   prompt    ChatGPT 向けの前提テンプレートを生成
   reply     OpenAI API で返信案 / 意思決定案を生成
+  privacy   機密情報抽出、仮名化、分析、復元を一括実行
 """
 
 import argparse
 
+from dotenv import load_dotenv
 from openai import OpenAI
 
 from line_log_toolkit import (
@@ -21,8 +23,10 @@ from line_log_toolkit import (
     collect_evidence_snippets,
     load_recent_messages,
     make_snippets,
+    PRIVACY_UNTIL_CHOICES,
     pick_last_incoming,
     render_context_block,
+    run_privacy_pipeline,
     safe_response_text,
     split_and_parse,
     write_prompt_template,
@@ -100,12 +104,54 @@ def cmd_reply(args):
             model=args.model,
             instructions=system_instructions,
             user_prompt=user_prompt,
+            max_output_tokens=args.max_output_tokens,
         )
         text = safe_response_text(resp)
         print(f"\n[{i+1}] {text}\n")
 
 
+def cmd_privacy(args):
+    custom_instruction = None
+    if args.instruction_file:
+        with open(args.instruction_file, "r", encoding="utf-8") as f:
+            custom_instruction = f.read().strip()
+
+    client = OpenAI()
+    result = run_privacy_pipeline(
+        input_path=args.input,
+        out_dir=args.out,
+        map_path=args.map,
+        client=client,
+        merge_map_path=args.merge_map,
+        extract_model=args.extract_model,
+        analysis_model=args.analysis_model,
+        custom_instruction=custom_instruction,
+        extract_max_output_tokens=args.extract_max_output_tokens,
+        analysis_max_output_tokens=args.analysis_max_output_tokens,
+        allow_short_entities=args.allow_short_entities,
+        until=args.until,
+    )
+
+    print(f"Completed until: {result.completed_until}")
+    print(f"Extracted entities: {result.entity_count} ({result.new_entity_count} new)")
+    print(
+        "Merged map entries: "
+        f"{result.reused_entry_count} imported, "
+        f"{result.merged_entry_count} merged, "
+        f"{result.merge_conflict_count} pseudonym conflicts"
+    )
+    print(f"Local map: {result.map_path}")
+    print(f"Extracted entities JSON: {result.extracted_entities_path}")
+    if result.pseudonymized_text_path is not None:
+        print(f"Pseudonymized text: {result.pseudonymized_text_path}")
+    if result.analysis_pseudonymized_path is not None:
+        print(f"Pseudonymized analysis: {result.analysis_pseudonymized_path}")
+    if result.analysis_restored_path is not None:
+        print(f"Restored analysis: {result.analysis_restored_path}")
+
+
 def main():
+    load_dotenv()
     ap = argparse.ArgumentParser(
         prog="line-log-toolkit",
         description="LINE トーク履歴の分割・整理・AI 活用ツールキット",
@@ -157,6 +203,63 @@ def main():
     )
     p_reply.add_argument("--max-output-tokens", type=int, default=600, help="出力トークン上限（既定: 600）")
     p_reply.set_defaults(func=cmd_reply)
+
+    # --- privacy ---
+    p_privacy = sub.add_parser(
+        "privacy",
+        help="機密情報抽出、仮名化、分析、復元を一括実行",
+    )
+    p_privacy.add_argument("--input", required=True, help="処理対象の生テキストファイル")
+    p_privacy.add_argument("--out", default="out/privacy", help="出力ディレクトリ")
+    p_privacy.add_argument(
+        "--map",
+        default=".pseudonym_map.json",
+        help="ローカル仮名化辞書 JSON",
+    )
+    p_privacy.add_argument(
+        "--merge-map",
+        default=None,
+        help="流用する既存の仮名化辞書 JSON。指定時は今回の辞書へ統合",
+    )
+    p_privacy.add_argument(
+        "--extract-model",
+        default=None,
+        help="抽出用モデル。未指定時は OPENAI_MODEL または gpt-4o-mini",
+    )
+    p_privacy.add_argument(
+        "--analysis-model",
+        default=None,
+        help="分析用モデル。未指定時は OPENAI_MODEL または gpt-4o-mini",
+    )
+    p_privacy.add_argument(
+        "--instruction-file",
+        default=None,
+        help="任意の追加分析指示ファイル",
+    )
+    p_privacy.add_argument(
+        "--extract-max-output-tokens",
+        type=int,
+        default=2000,
+        help="抽出API応答の出力トークン上限",
+    )
+    p_privacy.add_argument(
+        "--analysis-max-output-tokens",
+        type=int,
+        default=1800,
+        help="分析API応答の出力トークン上限",
+    )
+    p_privacy.add_argument(
+        "--until",
+        choices=PRIVACY_UNTIL_CHOICES,
+        default="restore",
+        help="停止位置: map, pseudonymize, analysis, restore",
+    )
+    p_privacy.add_argument(
+        "--allow-short-entities",
+        action="store_true",
+        help="1文字の抽出候補も許可する。短い名前に有効だが過剰置換に注意",
+    )
+    p_privacy.set_defaults(func=cmd_privacy)
 
     args = ap.parse_args()
     args.func(args)
