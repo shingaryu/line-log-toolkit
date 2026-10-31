@@ -124,7 +124,7 @@ ngrok トンネルの自動接続と webhook URL の自動設定に対応して�
 `privacy` コマンドは、セキュアAPIとローカル辞書を使ってステップ2〜6を一括実行します。
 
 1. 生テキストをセキュアAPIへ送り、固有名詞・連絡先などを抽出する
-2. ローカルJSONの仮名化辞書を生成・更新する
+2. ローカルにJSON形式の仮名化辞書を生成または更新する
 3. 辞書に基づいて生テキストを一貫した仮名へ置換する
 4. 仮名化済みテキストだけを分析用APIへ送る
 5. 分析結果内の仮名をローカル辞書で復元する
@@ -183,4 +183,76 @@ python cli.py privacy --input input/2026-02.txt --out out/privacy-test \
   - (b)は、ユーザーの指定によって：
     - 指定なし：今回の抽出結果(a)に新たに仮名を当てはめて作成
     - 既存のmapをユーザーが指定したとき(マージ処理)：今回の抽出結果(a)に仮名を当てはめるが、既存のmapに同じ意味のentityがあれば同じ仮名を利用する。
+      - どこまでを同じ意味とするかは、下記example参照
 - mapファイルのマージでコンフリクトが起きた場合の対処(手動含む)
+  → コンフリクトの定義がちょっと違う。仮名化が衝突した場合の対処。これは今のままでよい
+- 一度仮名化ファイルまで作ってしまった後で、実質的に同じ意味であるentityをユーザーが指定した上でmapファイルをマージする処理
+  - mapを更新したら、合わせて仮名ファイルも更新する必要がある
+- mapファイルを更新する場合、上書きとする。代わりに、入力ファイルはバージョン名をつけてバックアップする。
+
+### example
+* 既存の(ユーザーから入力として与えられた)mapが下記とする。
+* このとき、今回のテキストから抽出されたentitiesそれぞれのパターンに対する対応は次のようにする。
+  * entity_typeもsurfacesも完全一致するentityは、Person_Bとして仮名化し、松澤晃樹として復元する。
+  ``` json
+    {
+      "type": "PERSON",
+      "surfaces": [
+        "松澤晃樹",
+        "こうちゃん"
+      ]
+    }
+  ```
+  * entity_typeが一致しないentityは、surfacesが一致していても別扱い。ORGANIZATION_Aとして仮名化し、松澤晃樹として復元する。
+  ``` json
+    {
+      "type": "ORGANIZATION",
+      "surfaces": [
+        "松澤晃樹",
+        "こうちゃん"
+      ]
+    }
+  ```
+  * entity_typeが一致し、surfacesの集合がmap内のentityのsurfaceに包含されるものは、同じ扱い。Person_Bとして仮名化し、松澤晃樹として復元する。
+  ``` json
+    {
+      "type": "PERSON",
+      "surfaces": [
+        "こうちゃん"
+      ]
+    }
+  ```
+  * 疑問：entity_typeが一致し、surfacesの集合がmap内のentityのsurfaceに一部だけ一致するものはどうする？ → 一つでも一致していたら同じものとする
+  ``` json
+    {
+      "type": "PERSON",
+      "surfaces": [
+        "こうちゃん",
+        "こうさん"
+      ]
+    }
+  ```
+
+```json
+    {
+      "pseudonym": "Person_A",
+      "entity_type": "PERSON",
+      "surfaces": [
+        "hiromi",
+        "@hiromi"
+      ],
+      "restore_as": "hiromi",
+      "created_at": "2026-05-03T12:29:14+00:00"
+    },
+    {
+      "pseudonym": "Person_B",
+      "entity_type": "PERSON",
+      "surfaces": [
+        "松澤晃樹",
+        "こうちゃん"
+      ],
+      "restore_as": "松澤晃樹",
+      "created_at": "2026-05-03T12:29:14+00:00"
+    },
+
+```
